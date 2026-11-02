@@ -3,132 +3,255 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Family Hub Controller</title>
+  <title>Family Calendar</title>
+  <!-- Fast, robust iCal parser bundle from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ical.js/1.5.0/ical.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
+      background-color: #0d1117;
+      color: #e6edf3;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: #121212;
-      color: #ffffff;
-      padding: 24px 16px;
+      padding: 16px;
+      height: 100vh;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
       align-items: center;
-      min-height: 100vh;
+      padding-bottom: 12px;
     }
-    h1 { font-size: 1.4rem; margin-bottom: 20px; text-align: center; font-weight: 600; }
-    .card {
-      background: #1e1e1e;
-      border: 1px solid #333;
-      border-radius: 12px;
-      padding: 16px;
-      width: 100%;
-      max-width: 380px;
-      margin-bottom: 20px;
-    }
-    label { display: block; font-size: 0.8rem; color: #aaa; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
-    input {
-      width: 100%;
-      padding: 12px;
-      background: #2a2a2a;
-      border: 1px solid #444;
-      border-radius: 8px;
-      color: #fff;
-      font-size: 1rem;
-      margin-bottom: 14px;
-      outline: none;
-    }
-    input:focus { border-color: #1976d2; }
-    .grid {
+    h1 { font-size: 1.8rem; font-weight: 600; letter-spacing: -0.5px; }
+    #clock { font-size: 1.8rem; font-weight: 400; color: #58a6ff; font-variant-numeric: tabular-nums; }
+    .calendar-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      width: 100%;
-      max-width: 380px;
+      grid-template-columns: repeat(7, 1fr);
+      grid-template-rows: auto repeat(5, 1fr);
+      gap: 6px;
+      flex-grow: 1;
+      height: 100%;
     }
-    button {
-      padding: 16px 12px;
-      border: none;
-      border-radius: 10px;
-      font-size: 1rem;
+    .day-header {
+      text-align: center;
       font-weight: 600;
-      color: #fff;
-      cursor: pointer;
+      color: #8b949e;
+      padding: 6px;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .cell {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+    .cell.inactive { opacity: 0.25; background: #0b0e14; }
+    .cell.today { border: 2px solid #58a6ff; background: #1c2128; }
+    .date-num { font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; color: #8b949e; }
+    .cell.today .date-num { color: #58a6ff; }
+    .events-container {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      overflow-y: auto;
+      scrollbar-width: none;
+    }
+    .events-container::-webkit-scrollbar { display: none; }
+    .event {
+      background: #1f6feb;
+      color: #ffffff;
+      border-radius: 4px;
+      padding: 3px 6px;
+      font-size: 0.75rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
       display: flex;
       align-items: center;
-      justify-content: center;
-      transition: opacity 0.15s ease;
+      gap: 4px;
     }
-    button:active { opacity: 0.7; transform: scale(0.98); }
-    .btn-wake { background-color: #2e7d32; }
-    .btn-sleep { background-color: #c62828; }
-    .btn-reload { grid-column: span 2; background-color: #1565c0; margin-top: 4px; }
-    .status-box {
-      margin-top: 20px;
-      font-size: 0.85rem;
-      color: #888;
+    .event .time {
+      color: #bbdefb;
+      font-size: 0.7rem;
+      font-weight: 500;
+    }
+    #error-notice {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #21262d;
+      border: 1px solid #f85149;
+      padding: 24px;
+      border-radius: 10px;
       text-align: center;
-      min-height: 20px;
+      max-width: 500px;
+      z-index: 10;
     }
   </style>
 </head>
 <body>
-  <h1>Family Hub Remote</h1>
 
-  <div class="card">
-    <label for="ip">Onn Stick Local IP</label>
-    <input type="text" id="ip" placeholder="e.g. 192.168.68.50" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+  <header>
+    <h1 id="month-name">Loading Calendar...</h1>
+    <div id="clock">00:00</div>
+  </header>
 
-    <label for="pass">Fully Kiosk Password</label>
-    <input type="password" id="pass" placeholder="Password">
+  <div class="calendar-grid" id="grid">
+    <div class="day-header">Sun</div>
+    <div class="day-header">Mon</div>
+    <div class="day-header">Tue</div>
+    <div class="day-header">Wed</div>
+    <div class="day-header">Thu</div>
+    <div class="day-header">Fri</div>
+    <div class="day-header">Sat</div>
   </div>
 
-  <div class="grid">
-    <button class="btn-wake" onclick="sendKioskCommand('screenOn')">Wake Display</button>
-    <button class="btn-sleep" onclick="sendKioskCommand('screenOff')">Sleep Display</button>
-    <button class="btn-reload" onclick="sendKioskCommand('loadStartURL')">Reload Calendar</button>
+  <div id="error-notice">
+    <h3 style="color: #f85149; margin-bottom: 8px;">Missing Private iCal Address</h3>
+    <p style="font-size: 0.9rem; color: #c9d1d9;">
+      Append your secret Google Calendar link to this URL following a <code>#</code> symbol:
+    </p>
+    <code style="display: block; margin-top: 10px; padding: 8px; background: #0d1117; font-size: 0.75rem; word-break: break-all; color: #58a6ff;">
+      ...index.html#https://calendar.google.com/calendar/ical/.../basic.ics
+    </code>
   </div>
-
-  <div class="status-box" id="status">Ready</div>
 
   <script>
-    const ipInput = document.getElementById('ip');
-    const passInput = document.getElementById('pass');
-    const statusBox = document.getElementById('status');
+    // Live Clock display
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('clock').innerText = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
 
-    // Retrieve saved credentials from device storage
-    if (localStorage.getItem('hub_ip')) ipInput.value = localStorage.getItem('hub_ip');
-    if (localStorage.getItem('hub_pass')) passInput.value = localStorage.getItem('hub_pass');
+    // Pull calendar link entirely from the local hash fragment (after '#')
+    const rawHash = window.location.hash.substring(1);
+    const SECRET_ICAL_URL = decodeURIComponent(rawHash).trim();
 
-    // Save immediately on input change
-    ipInput.addEventListener('input', () => localStorage.setItem('hub_ip', ipInput.value.trim()));
-    passInput.addEventListener('input', () => localStorage.setItem('hub_pass', passInput.value.trim()));
+    async function loadCalendar() {
+      const errorBox = document.getElementById('error-notice');
 
-    function sendKioskCommand(cmd) {
-      const ip = ipInput.value.trim();
-      const pass = passInput.value.trim();
-
-      if (!ip || !pass) {
-        statusBox.innerText = 'Enter IP and Password above first.';
-        statusBox.style.color = '#ff5252';
+      if (!SECRET_ICAL_URL || !SECRET_ICAL_URL.startsWith("http")) {
+        errorBox.style.display = 'block';
+        document.getElementById('month-name').innerText = "Display Ready";
+        renderMonth([]);
         return;
       }
 
-      statusBox.innerText = 'Sending command...';
-      statusBox.style.color = '#aaa';
+      try {
+        // Free CORS proxy to avoid cross-domain browser blocks on client fetch
+        const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(SECRET_ICAL_URL);
+        const res = await fetch(proxyUrl);
+        if (!res.ok) throw new Error("Network request failed: " + res.status);
+        const icsText = await res.text();
 
-      const targetUrl = `http://${ip}:2323/?cmd=${cmd}&password=${encodeURIComponent(pass)}&type=json`;
+        // Parse via ical.js
+        const jcalData = ICAL.parse(icsText);
+        const comp = new ICAL.Component(jcalData);
+        const vevents = comp.getAllSubcomponents('vevent');
 
-      fetch(targetUrl, { mode: 'no-cors' })
-        .then(() => {
-          statusBox.innerText = 'Command sent: ' + cmd;
-          statusBox.style.color = '#81c784';
-        })
-        .catch(() => {
-          statusBox.innerText = 'Network error: Check Wi-Fi and IP.';
-          statusBox.style.color = '#ff5252';
+        const events = vevents.map(v => {
+          const item = new ICAL.Event(v);
+          const start = item.startDate.toJSDate();
+          return {
+            title: item.summary || "Untitled Event",
+            start: start,
+            isAllDay: item.startDate.isDate
+          };
         });
+
+        renderMonth(events);
+      } catch (err) {
+        console.error("Calendar Load Failure:", err);
+        document.getElementById('month-name').innerText = "Sync Failed (Retrying...)";
+      }
     }
+
+    function renderMonth(events) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+
+      document.getElementById('month-name').innerText = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+      const firstDayIdx = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      const grid = document.getElementById('grid');
+      // Keep first 7 day-header items, clear out previous day cells
+      while (grid.children.length > 7) {
+        grid.removeChild(grid.lastChild);
+      }
+
+      // Empty offset cells for days before the 1st of the month
+      for (let i = 0; i < firstDayIdx; i++) {
+        const blank = document.createElement('div');
+        blank.className = 'cell inactive';
+        grid.appendChild(blank);
+      }
+
+      // Render actual days
+      for (let d = 1; d <= daysInMonth; d++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        if (d === now.getDate()) cell.classList.add('today');
+
+        const dateNum = document.createElement('div');
+        dateNum.className = 'date-num';
+        dateNum.innerText = d;
+        cell.appendChild(dateNum);
+
+        const eventsContainer = document.createElement('div');
+        eventsContainer.className = 'events-container';
+
+        // Filter events belonging to this calendar date
+        const dayEvents = events.filter(e => {
+          return e.start.getDate() === d &&
+                 e.start.getMonth() === month &&
+                 e.start.getFullYear() === year;
+        });
+
+        // Sort events chronologically
+        dayEvents.sort((a, b) => a.start - b.start);
+
+        dayEvents.forEach(ev => {
+          const el = document.createElement('div');
+          el.className = 'event';
+          
+          if (!ev.isAllDay) {
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'time';
+            timeSpan.innerText = ev.start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(' ', '');
+            el.appendChild(timeSpan);
+          }
+
+          const titleSpan = document.createElement('span');
+          titleSpan.innerText = ev.title;
+          el.appendChild(titleSpan);
+
+          eventsContainer.appendChild(el);
+        });
+
+        cell.appendChild(eventsContainer);
+        grid.appendChild(cell);
+      }
+    }
+
+    loadCalendar();
+    // Auto-sync calendar events every 15 minutes
+    setInterval(loadCalendar, 15 * 60 * 1000);
   </script>
 </body>
 </html>
