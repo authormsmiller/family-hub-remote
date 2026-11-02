@@ -1,6 +1,6 @@
 {
   "name": "Family Hub Controller",
-  "short_name": "Hub Remote",
+  "short_name": "Family Hub",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#121212",
