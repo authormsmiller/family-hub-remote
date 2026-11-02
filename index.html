@@ -2,42 +2,133 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Family Hub Controller</title>
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#1f1f1f">
   <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: #121212;
       color: #ffffff;
-      margin: 0;
-      padding: 20px;
+      padding: 24px 16px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      box-sizing: border-box;
       min-height: 100vh;
     }
-    h1 { font-size: 1.3rem; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; }
-    .config-card {
+    h1 { font-size: 1.4rem; margin-bottom: 20px; text-align: center; font-weight: 600; }
+    .card {
       background: #1e1e1e;
       border: 1px solid #333;
       border-radius: 12px;
       padding: 16px;
       width: 100%;
-      max-width: 360px;
-      margin-bottom: 24px;
-      box-sizing: border-box;
+      max-width: 380px;
+      margin-bottom: 20px;
     }
-    label { font-size: 0.8rem; color: #888; text-transform: uppercase; }
+    label { display: block; font-size: 0.8rem; color: #aaa; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
     input {
       width: 100%;
-      padding: 10px;
-      margin: 6px 0 12px;
-      border: 1px solid #444;
-      border-radius: 6px;
+      padding: 12px;
       background: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 8px;
       color: #fff;
-      font-size: 0.95rem;
-      box-sizing: border-box
+      font-size: 1rem;
+      margin-bottom: 14px;
+      outline: none;
+    }
+    input:focus { border-color: #1976d2; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      width: 100%;
+      max-width: 380px;
+    }
+    button {
+      padding: 16px 12px;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.15s ease;
+    }
+    button:active { opacity: 0.7; transform: scale(0.98); }
+    .btn-wake { background-color: #2e7d32; }
+    .btn-sleep { background-color: #c62828; }
+    .btn-reload { grid-column: span 2; background-color: #1565c0; margin-top: 4px; }
+    .status-box {
+      margin-top: 20px;
+      font-size: 0.85rem;
+      color: #888;
+      text-align: center;
+      min-height: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Family Hub Remote</h1>
+
+  <div class="card">
+    <label for="ip">Onn Stick Local IP</label>
+    <input type="text" id="ip" placeholder="e.g. 192.168.68.50" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+    <label for="pass">Fully Kiosk Password</label>
+    <input type="password" id="pass" placeholder="Password">
+  </div>
+
+  <div class="grid">
+    <button class="btn-wake" onclick="sendKioskCommand('screenOn')">Wake Display</button>
+    <button class="btn-sleep" onclick="sendKioskCommand('screenOff')">Sleep Display</button>
+    <button class="btn-reload" onclick="sendKioskCommand('loadStartURL')">Reload Calendar</button>
+  </div>
+
+  <div class="status-box" id="status">Ready</div>
+
+  <script>
+    const ipInput = document.getElementById('ip');
+    const passInput = document.getElementById('pass');
+    const statusBox = document.getElementById('status');
+
+    // Retrieve saved credentials from device storage
+    if (localStorage.getItem('hub_ip')) ipInput.value = localStorage.getItem('hub_ip');
+    if (localStorage.getItem('hub_pass')) passInput.value = localStorage.getItem('hub_pass');
+
+    // Save immediately on input change
+    ipInput.addEventListener('input', () => localStorage.setItem('hub_ip', ipInput.value.trim()));
+    passInput.addEventListener('input', () => localStorage.setItem('hub_pass', passInput.value.trim()));
+
+    function sendKioskCommand(cmd) {
+      const ip = ipInput.value.trim();
+      const pass = passInput.value.trim();
+
+      if (!ip || !pass) {
+        statusBox.innerText = 'Enter IP and Password above first.';
+        statusBox.style.color = '#ff5252';
+        return;
+      }
+
+      statusBox.innerText = 'Sending command...';
+      statusBox.style.color = '#aaa';
+
+      const targetUrl = `http://${ip}:2323/?cmd=${cmd}&password=${encodeURIComponent(pass)}&type=json`;
+
+      fetch(targetUrl, { mode: 'no-cors' })
+        .then(() => {
+          statusBox.innerText = 'Command sent: ' + cmd;
+          statusBox.style.color = '#81c784';
+        })
+        .catch(() => {
+          statusBox.innerText = 'Network error: Check Wi-Fi and IP.';
+          statusBox.style.color = '#ff5252';
+        });
+    }
+  </script>
+</body>
+</html>
